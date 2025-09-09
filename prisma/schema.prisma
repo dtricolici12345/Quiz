@@ -1,0 +1,245 @@
+// ---------- generator / datasource ----------
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- ENUM ----------
+enum FriendStatus {
+  pending
+  accepted
+  declined
+}
+
+enum GameStatus {
+  pending
+  in_progress
+  finished
+}
+
+enum RoundStatus {
+  pending
+  in_progress
+  finished
+}
+
+enum NotificationType {
+  invite
+  round_start
+  result
+}
+
+enum NotificationStatus {
+  sent
+  read
+}
+
+// ---------- MODELS ----------
+
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique @db.VarChar(254)
+  passwordHash String   @db.VarChar(200)
+  nickname     String?  @unique @db.VarChar(50)
+  avatarUrl    String?  @db.VarChar(255)
+  rating       Int      @default(0)
+  createdAt    DateTime @default(now())
+  deletedAt    DateTime?    
+
+  
+  // игры
+  gamesAsP1 Game[] @relation("player1")
+  gamesAsP2 Game[] @relation("player2")
+
+  // активность
+  answers       Answer[]
+  notifications Notification[]
+
+  // дружба
+  sentFriendReq Friend[] @relation("sender")
+  recvFriendReq Friend[] @relation("receiver")
+
+  // статистики
+  playerStat     PlayerStat?
+  h2hAsUser      H2HStat[]        @relation("h2h_user")
+  h2hAsOpponent  H2HStat[]        @relation("h2h_opponent")
+  RefreshSession RefreshSession[]
+}
+
+// Дружба
+model Friend {
+  id          Int          @id @default(autoincrement())
+  senderId    Int
+  receiverId  Int
+  requestedAt DateTime     @default(now())
+  status      FriendStatus
+
+  sender   User @relation("sender", fields: [senderId], references: [id])
+  receiver User @relation("receiver", fields: [receiverId], references: [id])
+
+  @@unique([senderId, receiverId])
+}
+
+// Игра
+model Game {
+  id         Int        @id @default(autoincrement())
+  player1Id  Int
+  player2Id  Int
+  createdAt  DateTime   @default(now())
+  finishedAt DateTime?
+  status     GameStatus
+
+  player1 User @relation("player1", fields: [player1Id], references: [id])
+  player2 User @relation("player2", fields: [player2Id], references: [id])
+
+  rounds        Round[]
+  notifications Notification[]
+}
+
+// Раунд
+model Round {
+  id      Int         @id @default(autoincrement())
+  gameId  Int
+  number  Int
+  startAt DateTime?
+  endAt   DateTime?
+  status  RoundStatus
+
+  game          Game            @relation(fields: [gameId], references: [id])
+  questions     RoundQuestion[]
+  answers       Answer[]
+  notifications Notification[]
+
+  @@unique([gameId, number])
+}
+
+// Вопрос
+model Question {
+  id       Int     @id @default(autoincrement())
+  text     String  @db.VarChar(255)
+  category String? @db.VarChar(100)
+  source   String? @db.VarChar(150)
+  slug String @unique @db.VarChar(64)
+
+
+  options  AnswerOption[]
+  usedIn   RoundQuestion[]
+  answers  Answer[]
+}
+
+
+// Вариант ответа
+model AnswerOption {
+  id         Int     @id @default(autoincrement())
+  questionId Int
+  text       String  @db.VarChar(150)
+  isCorrect  Boolean
+
+  question Question @relation(fields: [questionId], references: [id])
+  answers  Answer[] // ← ответная связь для Answer.option
+
+  @@index([questionId])
+}
+
+// Связь Раунд—Вопрос
+model RoundQuestion {
+  id           Int  @id @default(autoincrement())
+  roundId      Int
+  questionId   Int
+  position     Int
+  timeLimitSec Int?
+
+  round    Round    @relation(fields: [roundId], references: [id])
+  question Question @relation(fields: [questionId], references: [id])
+
+  @@unique([roundId, position])
+  @@index([roundId, questionId])
+}
+
+// Ответ пользователя
+model Answer {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  roundId    Int
+  questionId Int
+  optionId   Int? // может быть null (не ответил)
+  isCorrect  Boolean?
+  elapsedMs  Int?
+  createdAt  DateTime @default(now())
+
+  user     User          @relation(fields: [userId], references: [id])
+  round    Round         @relation(fields: [roundId], references: [id])
+  question Question      @relation(fields: [questionId], references: [id])
+  option   AnswerOption? @relation(fields: [optionId], references: [id]) // ← опционально
+
+  @@unique([userId, roundId, questionId])
+  @@index([roundId])
+}
+
+// Уведомление
+model Notification {
+  id        Int                @id @default(autoincrement())
+  userId    Int
+  gameId    Int?
+  roundId   Int?
+  type      NotificationType
+  text      String             @db.VarChar(255)
+  status    NotificationStatus @default(sent)
+  createdAt DateTime           @default(now())
+
+  user  User   @relation(fields: [userId], references: [id])
+  round Round? @relation(fields: [roundId], references: [id]) // ← опционально
+  game  Game?  @relation(fields: [gameId], references: [id]) // ← опционально
+}
+
+// Общая статистика игрока
+model PlayerStat {
+  userId         Int  @id
+  rating         Int  @default(0)
+  wins           Int  @default(0)
+  losses         Int  @default(0)
+  draws          Int  @default(0)
+  correctAnswers Int  @default(0)
+  totalAnswers   Int  @default(0)
+  avgAnswerMs    Int?
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+// Head-to-Head статистика
+model H2HStat {
+  id             Int @id @default(autoincrement())
+  userId         Int
+  opponentId     Int
+  wins           Int @default(0)
+  losses         Int @default(0)
+  draws          Int @default(0)
+  correctAnswers Int @default(0)
+  totalAnswers   Int @default(0)
+
+  user     User @relation("h2h_user", fields: [userId], references: [id])
+  opponent User @relation("h2h_opponent", fields: [opponentId], references: [id])
+
+  @@unique([userId, opponentId])
+  @@index([opponentId])
+}
+
+model RefreshSession {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  jti       String    @unique // уникальный ID токена
+  tokenHash String // храним ХЭШ токена (сам токен не храним)
+  userAgent String?   @db.VarChar(255)
+  ip        String?   @db.VarChar(45)
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}

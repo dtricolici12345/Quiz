@@ -1,0 +1,23 @@
+[
+  {
+    "text": "Кто выиграл Чемпионат мира 2018?",
+    "category": "world_cup",
+    "options": [
+      { "text": "Франция", "isCorrect": true },
+      { "text": "Хорватия", "isCorrect": false },
+      { "text": "Бразилия", "isCorrect": false },
+      { "text": "Германия", "isCorrect": false }
+    ],
+    "source": "FIFA"
+  },
+  {
+    "text": "Какой клуб выиграл ЛЧ в 2021?",
+    "category": "club",
+    "options": [
+      { "text": "Челси", "isCorrect": true },
+      { "text": "Манчестер Сити", "isCorrect": false },
+      { "text": "Реал", "isCorrect": false },
+      { "text": "ПСЖ", "isCorrect": false }
+    ]
+  }
+]
