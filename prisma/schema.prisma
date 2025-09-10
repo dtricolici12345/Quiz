@@ -19,12 +19,15 @@ enum GameStatus {
   pending
   in_progress
   finished
+  expired // NEW
+  canceled // NEW 
 }
 
 enum RoundStatus {
   pending
   in_progress
   finished
+  expired
 }
 
 enum NotificationType {
@@ -41,16 +44,15 @@ enum NotificationStatus {
 // ---------- MODELS ----------
 
 model User {
-  id           Int      @id @default(autoincrement())
-  email        String   @unique @db.VarChar(254)
-  passwordHash String   @db.VarChar(200)
-  nickname     String?  @unique @db.VarChar(50)
-  avatarUrl    String?  @db.VarChar(255)
-  rating       Int      @default(0)
-  createdAt    DateTime @default(now())
-  deletedAt    DateTime?    
+  id           Int       @id @default(autoincrement())
+  email        String    @unique @db.VarChar(254)
+  passwordHash String    @db.VarChar(200)
+  nickname     String?   @unique @db.VarChar(50)
+  avatarUrl    String?   @db.VarChar(255)
+  rating       Int       @default(0)
+  createdAt    DateTime  @default(now())
+  deletedAt    DateTime?
 
-  
   // игры
   gamesAsP1 Game[] @relation("player1")
   gamesAsP2 Game[] @relation("player2")
@@ -68,6 +70,12 @@ model User {
   h2hAsUser      H2HStat[]        @relation("h2h_user")
   h2hAsOpponent  H2HStat[]        @relation("h2h_opponent")
   RefreshSession RefreshSession[]
+
+  // пуш-токены
+  deviceTokens DeviceToken[]
+
+  // раунды, где этот пользователь — активный игрок
+  roundsAsPlayer Round[] @relation("round_player") // ← ДОБАВИТЬ
 }
 
 // Дружба
@@ -91,7 +99,7 @@ model Game {
   player2Id  Int
   createdAt  DateTime   @default(now())
   finishedAt DateTime?
-  status     GameStatus
+  status     GameStatus @default(pending)
 
   player1 User @relation("player1", fields: [player1Id], references: [id])
   player2 User @relation("player2", fields: [player2Id], references: [id])
@@ -100,14 +108,18 @@ model Game {
   notifications Notification[]
 }
 
-// Раунд
 model Round {
-  id      Int         @id @default(autoincrement())
-  gameId  Int
-  number  Int
+  id     Int @id @default(autoincrement())
+  gameId Int
+  number Int
+
+  // чей ход
+  playerId Int
+  player   User @relation("round_player", fields: [playerId], references: [id])
+
   startAt DateTime?
   endAt   DateTime?
-  status  RoundStatus
+  status  RoundStatus @default(pending)
 
   game          Game            @relation(fields: [gameId], references: [id])
   questions     RoundQuestion[]
@@ -115,6 +127,7 @@ model Round {
   notifications Notification[]
 
   @@unique([gameId, number])
+  @@index([status, endAt]) // NEW
 }
 
 // Вопрос
@@ -123,14 +136,12 @@ model Question {
   text     String  @db.VarChar(255)
   category String? @db.VarChar(100)
   source   String? @db.VarChar(150)
-  slug String @unique @db.VarChar(64)
+  slug     String  @unique @db.VarChar(64)
 
-
-  options  AnswerOption[]
-  usedIn   RoundQuestion[]
-  answers  Answer[]
+  options AnswerOption[]
+  usedIn  RoundQuestion[]
+  answers Answer[]
 }
-
 
 // Вариант ответа
 model AnswerOption {
@@ -194,6 +205,19 @@ model Notification {
   user  User   @relation(fields: [userId], references: [id])
   round Round? @relation(fields: [roundId], references: [id]) // ← опционально
   game  Game?  @relation(fields: [gameId], references: [id]) // ← опционально
+}
+
+model DeviceToken {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  token     String    @unique // FCM / APNs / WebPush
+  platform  String? // ios | android | web
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
 }
 
 // Общая статистика игрока
