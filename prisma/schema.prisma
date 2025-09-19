@@ -89,7 +89,9 @@ model Friend {
   sender   User @relation("sender", fields: [senderId], references: [id])
   receiver User @relation("receiver", fields: [receiverId], references: [id])
 
-  @@unique([senderId, receiverId])
+ @@unique([senderId, receiverId])
+  @@index([receiverId, status])
+  @@index([senderId, status])
 }
 
 // Игра
@@ -205,6 +207,8 @@ model Notification {
   user  User   @relation(fields: [userId], references: [id])
   round Round? @relation(fields: [roundId], references: [id]) // ← опционально
   game  Game?  @relation(fields: [gameId], references: [id]) // ← опционально
+
+   @@index([userId, status, createdAt])
 }
 
 model DeviceToken {

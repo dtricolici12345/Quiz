@@ -5,12 +5,11 @@ import router from './router.js';
 import { errorHandler } from './middlewares/error.js';
 
 const app = express();
-
-// 1) сначала парсим cookies
+// парсы
+app.use(express.json({ limit: '1mb' })); 
 app.use(cookieParser());
 
-// 2) потом JSON
-app.use(express.json());
+
 
 // 3) твои роуты
 app.use(router);
